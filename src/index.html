@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Tracker</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f8ff;
+        }
+
+        #clock {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        #timer {
+            font-size: 3rem;
+            color: #007bff;
+            margin: 1rem 0;
+        }
+
+        .btn-group {
+            margin-top: 1rem;
+        }
+
+        #stats {
+            width: 300px;
+            position: absolute;
+            left: 10px;
+            top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="stats" class="bg-light p-3 rounded shadow-sm">
+        <h5>Last 5 Days Statistics</h5>
+        <ul id="statsList" class="list-unstyled"></ul>
+    </div>
+
+    <div class="text-center">
+        <div id="clock"></div>
+        <div id="timer">00:00</div>
+
+        <div class="btn-group">
+            <button onclick="startSession()" class="btn btn-primary">Start</button>
+            <button onclick="pauseSession()" class="btn btn-warning">Pause</button>
+            <button onclick="resetSession()" class="btn btn-danger">Reset</button>
+        </div>
+
+        <div class="mt-3">
+            <label for="duration">Session Duration (5-120 mins):</label>
+            <input type="number" id="duration" min="5" max="120" value="25">
+            <label for="break">Breaks (5 min intervals):</label>
+            <input type="number" id="break" min="0" max="30" value="5">
+        </div>
+    </div>
+
+    <script>
+        let timerInterval, sessionTime, remainingTime;
+        let isPaused = true;
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+
+        function startSession() {
+            if (isPaused) {
+                isPaused = false;
+                const duration = Math.min(Math.max(document.getElementById('duration').value, 5), 120) * 60;
+                const breakTime = Math.max(document.getElementById('break').value, 0) * 60;
+                sessionTime = duration;
+                remainingTime = sessionTime;
+
+                timerInterval = setInterval(() => {
+                    if (!isPaused) {
+                        remainingTime--;
+                        updateTimerDisplay();
+
+                        if (remainingTime <= 0) {
+                            clearInterval(timerInterval);
+                            recordSession(duration);
+                            alert("Session complete!");
+                            if (breakTime > 0) {
+                                remainingTime = breakTime;
+                                startBreak();
+                            }
+                        }
+                    }
+                }, 1000);
+            }
+        }
+
+        function startBreak() {
+            alert("Break time! Relax for " + document.getElementById('break').value + " minutes.");
+            timerInterval = setInterval(() => {
+                remainingTime--;
+                updateTimerDisplay();
+
+                if (remainingTime <= 0) {
+                    clearInterval(timerInterval);
+                    resetSession();
+                }
+            }, 1000);
+        }
+
+        function pauseSession() {
+            isPaused = !isPaused;
+        }
+
+        function resetSession() {
+            clearInterval(timerInterval);
+            isPaused = true;
+            sessionTime = 0;
+            remainingTime = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(remainingTime / 60);
+            const secs = remainingTime % 60;
+            document.getElementById('timer').innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function recordSession(duration) {
+            const today = new Date().toLocaleDateString();
+            const sessions = JSON.parse(localStorage.getItem("focusSessions") || "[]");
+            sessions.push({ date: today, duration: duration / 60 });
+            if (sessions.length > 5) sessions.shift();
+            localStorage.setItem("focusSessions", JSON.stringify(sessions));
+            updateStats();
+        }
+
+        function updateStats() {
+            const sessions = JSON.parse(localStorage.getItem("focusSessions") || "[]");
+            const statsList = document.getElementById('statsList');
+            statsList.innerHTML = sessions.map(session => `<li>${session.date}: ${session.duration} mins</li>`).join("");
+        }
+
+        window.onload = () => {
+            updateStats();
+            updateClock();
+        };
+    </script>
+</body>
+
+</html>
