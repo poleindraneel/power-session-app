@@ -45,29 +45,33 @@
         <h5>Last 5 Days Statistics</h5>
         <ul id="statsList" class="list-unstyled"></ul>
     </div>
-
     <div class="text-center">
         <div id="clock"></div>
         <div id="timer">00:00</div>
-
         <div class="btn-group">
             <button onclick="startSession()" class="btn btn-primary">Start</button>
             <button onclick="pauseSession()" class="btn btn-warning">Pause</button>
             <button onclick="resetSession()" class="btn btn-danger">Reset</button>
         </div>
-
+        <div id="totalFocusTime" class="mt-3">
+            <strong>Total Focus Time Today:</strong> <span id="focusTimeToday">0</span> minutes
+        </div>
         <div class="mt-3">
             <label for="duration">Session Duration (5-120 mins):</label>
-            <input type="number" id="duration" min="5" max="120" value="25">
-            <label for="break">Breaks (5 min intervals):</label>
-            <input type="number" id="break" min="0" max="30" value="5">
+            <input type="number" id="duration" min="5" max="120" value="25" onchange="checkBreakOption()" oninput="checkBreakOption()">
+
+            <div id="breakOption" style="display: none;">
+                <label>
+                    <input type="checkbox" id="enableBreaks" checked="true">
+                    Enable 5-min Breaks (every 20 mins)
+                </label>
+            </div>
         </div>
     </div>
-
     <script>
-        let timerInterval, sessionTime, remainingTime;
-        let isPaused = true;
-
+        let timerInterval, sessionTime, remainingTime, remainingTimeBeforeBreak;
+        let isPaused = false;
+        let totalFocusTimeToday = 0;
         function updateClock() {
             const now = new Date();
             document.getElementById('clock').innerText = now.toLocaleTimeString();
@@ -76,55 +80,92 @@
 
         function startSession() {
             if (isPaused) {
+                isPaused = !isPaused
+            } else {
                 isPaused = false;
                 const duration = Math.min(Math.max(document.getElementById('duration').value, 5), 120) * 60;
-                const breakTime = Math.max(document.getElementById('break').value, 0) * 60;
-                sessionTime = duration;
-                remainingTime = sessionTime;
+                console.log("duration", duration);
+                sessionTime = JSON.parse(JSON.stringify(duration));
+                remainingTime = JSON.parse(JSON.stringify(sessionTime));
+
+                document.getElementById('duration').disabled = true;
+                document.getElementById('enableBreaks').disabled = true;
 
                 timerInterval = setInterval(() => {
                     if (!isPaused) {
                         remainingTime--;
                         updateTimerDisplay();
-
-                        if (remainingTime <= 0) {
+                        if (remainingTime <= 0 && !isBreak) {
+                            updateFocusDuration(); // Update total time when session completes
                             clearInterval(timerInterval);
                             recordSession(duration);
-                            alert("Session complete!");
-                            if (breakTime > 0) {
-                                remainingTime = breakTime;
-                                startBreak();
-                            }
+                            console.log("Session complete!");
+                            resetSession();
+                        } else if (document.getElementById('enableBreaks').checked && !isBreak && (sessionTime - remainingTime) % 10 === 0) {
+                            updateFocusDuration();
+                            remainingTimeBeforeBreak = JSON.parse(JSON.stringify(remainingTime)); // Save remaining time before break
+                            isBreak = true;
+                            remainingTime = 10; // Set to 5 minutes for break
+                            console.log("Break time! Relax for 5 minutes.");
+                        } else if (isBreak && remainingTime <= 0) {
+                            isBreak = false;
+                            remainingTime = JSON.parse(JSON.stringify(remainingTimeBeforeBreak)); // Resume main timer
+                            console.log("Break over! Resuming session.");
                         }
                     }
                 }, 1000);
             }
         }
-
-        function startBreak() {
-            alert("Break time! Relax for " + document.getElementById('break').value + " minutes.");
-            timerInterval = setInterval(() => {
-                remainingTime--;
-                updateTimerDisplay();
-
-                if (remainingTime <= 0) {
-                    clearInterval(timerInterval);
-                    resetSession();
-                }
-            }, 1000);
+        function updateFocusTimeDisplay() {
+            document.getElementById('focusTimeToday').innerText = totalFocusTimeToday;
         }
-
-        function pauseSession() {
-            isPaused = !isPaused;
+        function saveFocusTime() {
+            const today = new Date().toDateString();
+            const focusData = { date: today, time: totalFocusTimeToday };
+            localStorage.setItem('focusTimeToday', JSON.stringify(focusData));
+        }
+        function updateFocusDuration() {
+            const focusedTime = sessionTime - remainingTime;
+            totalFocusTimeToday += Math.floor(focusedTime / 60); // Convert seconds to minutes
+            saveFocusTime();
+            updateFocusTimeDisplay();
         }
 
         function resetSession() {
             clearInterval(timerInterval);
             isPaused = true;
+            isBreak = false;
             sessionTime = 0;
             remainingTime = 0;
+
+            document.getElementById('duration').disabled = false;
+            document.getElementById('enableBreaks').disabled = false;
+
             updateTimerDisplay();
         }
+
+        function checkBreakOption() {
+            const duration = parseInt(document.getElementById('duration').value, 10);
+            const breakOption = document.getElementById('breakOption');
+            const enableBreaks = document.getElementById('enableBreaks');
+
+            if (duration >= 40) {
+                breakOption.style.display = "block";
+                enableBreaks.disabled = false;
+            } else {
+                breakOption.style.display = "none";
+                enableBreaks.checked = false;
+            }
+        }
+
+        let isBreak = false;
+
+        function pauseSession() {
+            if (!isPaused)
+                updateFocusDuration(); // Update total time when session completes
+            isPaused = !isPaused;
+        }
+
 
         function updateTimerDisplay() {
             const mins = Math.floor(remainingTime / 60);
